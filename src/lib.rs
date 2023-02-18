@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fs};
+use std::{ffi::OsString, fs, slice::Iter};
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
@@ -7,26 +7,40 @@ pub struct CLI {
     #[arg(required = true)]
     pub paths: Vec<OsString>,
 
-    /// Ignore files with thoses texts in it
+    /// Exclude files with matching names
     #[arg(short, long, default_values = ["index"])]
-    pub ignores: Vec<String>,
+    pub ignore: Vec<String>,
+
+    /// File extensions to consider
+    #[arg(long = "ext", default_values = [".ts", ".tsx", ".js", ".jsx"])]
+    pub extensions: Vec<String>,
 }
 
-pub fn read_dirs(paths: &Vec<OsString>, ignores: &Vec<String>) -> Vec<Vec<String>> {
+pub fn read_dirs(
+    paths: &Vec<OsString>,
+    ignore: &Vec<String>,
+    extensions: &Vec<String>,
+) -> Vec<Vec<String>> {
     paths
         .into_iter()
-        .map(|p| fs::read_dir(p))
-        .filter_map(|r| r.ok())
+        .filter_map(|path| fs::read_dir(path).ok())
         .map(|rd| {
             rd.filter_map(|r| r.ok())
-                .filter(|dr| {
-                    !ignores
-                        .into_iter()
-                        .any(|i| dr.file_name().into_string().unwrap_or_default().contains(i))
-                })
-                .map(|dr| dr.file_name().into_string())
-                .filter_map(|r| r.ok())
+                .filter_map(|entry| filter_dir(&entry, ignore, extensions))
                 .collect()
         })
         .collect()
+}
+
+fn filter_dir(entry: &fs::DirEntry, ignore: &Vec<String>, include: &Vec<String>) -> Option<String> {
+    let name = entry.file_name().into_string().ok()?;
+
+    let verify = |mut iter: Iter<String>| iter.any(|str| name.contains(str));
+    let should_exclude = verify(ignore.into_iter());
+    let should_include = verify(include.into_iter());
+
+    if !should_exclude && should_include {
+        return Some(name);
+    }
+    return None;
 }
