@@ -20,27 +20,31 @@ pub fn read_dirs(
     paths: &Vec<OsString>,
     ignore: &Vec<String>,
     extensions: &Vec<String>,
-) -> Vec<Vec<String>> {
+) -> Vec<Vec<fs::DirEntry>> {
     paths
         .into_iter()
         .filter_map(|path| fs::read_dir(path).ok())
         .map(|rd| {
             rd.filter_map(|r| r.ok())
-                .filter_map(|entry| filter_dir(&entry, ignore, extensions))
+                .filter_map(|entry| filter_dir(entry, ignore, extensions))
                 .collect()
         })
         .collect()
 }
 
-fn filter_dir(entry: &fs::DirEntry, ignore: &Vec<String>, include: &Vec<String>) -> Option<String> {
+fn filter_dir(
+    entry: fs::DirEntry,
+    ignore: &Vec<String>,
+    include: &Vec<String>,
+) -> Option<fs::DirEntry> {
     let name = entry.file_name().into_string().ok()?;
 
-    let verify = |mut iter: Iter<String>| iter.any(|str| name.contains(str));
-    let should_exclude = verify(ignore.into_iter());
-    let should_include = verify(include.into_iter());
+    let include_name_substr = |mut iter: Iter<String>| iter.any(|str| name.contains(str));
+    let should_exclude = include_name_substr(ignore.into_iter());
+    let should_include = include_name_substr(include.into_iter());
 
     if !should_exclude && should_include {
-        return Some(name);
+        return Some(entry);
     }
     return None;
 }
