@@ -1,9 +1,16 @@
 use clap::Parser;
-use reexport::{read_dirs, CLI};
+use reexport::{read_path, CLI};
 
 fn main() {
     let cli = CLI::parse();
 
-    let contents = read_dirs(&cli.paths, &cli.ignore, &cli.extensions);
-    println!("{:?}", contents);
+    let hash = read_path(&cli.paths, cli.depth);
+
+    for (key, values) in hash {
+        println!("{:?}", key);
+
+        for value in values {
+            println!("  {:?}", value);
+        }
+    }
 }

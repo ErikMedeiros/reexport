@@ -1,9 +1,11 @@
-use std::{ffi::OsString, fs, slice::Iter};
+use std::{collections::HashMap, ffi::OsString, path::PathBuf};
+
+use walkdir::WalkDir;
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct CLI {
-    /// List of relative paths to be reexported
+    /// List of paths to be reexported
     #[arg(required = true)]
     pub paths: Vec<OsString>,
 
@@ -14,37 +16,35 @@ pub struct CLI {
     /// File extensions to consider
     #[arg(long = "ext", default_values = [".ts", ".tsx", ".js", ".jsx"])]
     pub extensions: Vec<String>,
+
+    /// Reexport folders until specific depth
+    #[arg(short, long, default_value_t = 1)]
+    pub depth: usize,
 }
 
-pub fn read_dirs(
-    paths: &Vec<OsString>,
-    ignore: &Vec<String>,
-    extensions: &Vec<String>,
-) -> Vec<Vec<fs::DirEntry>> {
-    paths
-        .into_iter()
-        .filter_map(|path| fs::read_dir(path).ok())
-        .map(|rd| {
-            rd.filter_map(|r| r.ok())
-                .filter_map(|entry| filter_dir(entry, ignore, extensions))
-                .collect()
-        })
-        .collect()
-}
+pub fn read_path(paths: &Vec<OsString>, depth: usize) -> HashMap<&OsString, Vec<PathBuf>> {
+    let mut hash = HashMap::new();
 
-fn filter_dir(
-    entry: fs::DirEntry,
-    ignore: &Vec<String>,
-    include: &Vec<String>,
-) -> Option<fs::DirEntry> {
-    let name = entry.file_name().into_string().ok()?;
+    for path in paths {
+        let files: Vec<_> = WalkDir::new(path)
+            .max_depth(depth)
+            .into_iter()
+            .filter_map(|r| r.ok())
+            .filter(|entry| !entry.metadata().unwrap().is_dir())
+            .map(|entry| entry.path().to_owned())
+            .collect();
 
-    let include_name_substr = |mut iter: Iter<String>| iter.any(|str| name.contains(str));
-    let should_exclude = include_name_substr(ignore.into_iter());
-    let should_include = include_name_substr(include.into_iter());
-
-    if !should_exclude && should_include {
-        return Some(entry);
+        hash.insert(path, files);
     }
-    return None;
+
+    return hash;
 }
+
+/*
+paths
+    .into_iter()
+    .map(|path| fs::read_dir(path))
+    .filter_map(|r| r.and_then(|rd| Ok(rd)).ok())
+    .flat_map(|rd| rd.map(|entry| entry))
+    .collect();
+ */
