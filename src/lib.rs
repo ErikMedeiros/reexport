@@ -16,32 +16,33 @@ pub struct CLI {
     #[arg(long = "ext", default_values = [".ts", ".tsx", ".js", ".jsx"])]
     pub extensions: Vec<OsString>,
 
-    /// Reexport folders until specific depth
-    #[arg(short, long, default_value_t = 1)]
+    /// Reexport subfolders within N depth
+    #[arg(short, long, default_value_t = 0)]
     pub depth: usize,
 }
 
 pub fn read_path(root: &Path, max_depth: usize, depth: usize) -> Vec<Entry> {
     let rd = fs::read_dir(root).unwrap();
 
-    let output: Vec<_> = rd
+    let output = rd
         .filter_map(|r| r.ok())
-        .filter_map(|entry| {
+        .map(|entry| {
             let path = entry.path();
 
             if path.is_file() {
-                return Some(Entry::File(path));
-            } else if depth + 1 <= max_depth {
-                let folder = Entry::Folder {
-                    name: path.file_name().unwrap().to_owned(),
-                    entries: read_path(&path, max_depth, depth + 1),
-                };
-                return Some(folder);
+                return Entry::File(path);
             }
 
-            return None;
+            let name = path.file_name().unwrap().to_owned();
+            let entries = if depth + 1 <= max_depth {
+                read_path(&path, max_depth, depth + 1)
+            } else {
+                Vec::new()
+            };
+
+            return Entry::Folder { name, entries };
         })
-        .collect();
+        .collect::<Vec<Entry>>();
 
     return output;
 }
