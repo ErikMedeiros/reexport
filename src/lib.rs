@@ -1,50 +1,53 @@
-use std::{collections::HashMap, ffi::OsString, path::PathBuf};
-
-use walkdir::WalkDir;
+use std::path::{Path, PathBuf};
+use std::{ffi::OsString, fs};
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct CLI {
     /// List of paths to be reexported
     #[arg(required = true)]
-    pub paths: Vec<OsString>,
+    pub paths: Vec<PathBuf>,
 
     /// Exclude files with matching names
     #[arg(short, long, default_values = ["index"])]
-    pub ignore: Vec<String>,
+    pub ignore: Vec<OsString>,
 
     /// File extensions to consider
     #[arg(long = "ext", default_values = [".ts", ".tsx", ".js", ".jsx"])]
-    pub extensions: Vec<String>,
+    pub extensions: Vec<OsString>,
 
     /// Reexport folders until specific depth
     #[arg(short, long, default_value_t = 1)]
     pub depth: usize,
 }
 
-pub fn read_path(paths: &Vec<OsString>, depth: usize) -> HashMap<&OsString, Vec<PathBuf>> {
-    let mut hash = HashMap::new();
+pub fn read_path(root: &Path, max_depth: usize, depth: usize) -> Vec<Entry> {
+    let rd = fs::read_dir(root).unwrap();
 
-    for path in paths {
-        let files: Vec<_> = WalkDir::new(path)
-            .max_depth(depth)
-            .into_iter()
-            .filter_map(|r| r.ok())
-            .filter(|entry| !entry.metadata().unwrap().is_dir())
-            .map(|entry| entry.path().to_owned())
-            .collect();
+    let output: Vec<_> = rd
+        .filter_map(|r| r.ok())
+        .filter_map(|entry| {
+            let path = entry.path();
 
-        hash.insert(path, files);
-    }
+            if path.is_file() {
+                return Some(Entry::File(path));
+            } else if depth + 1 <= max_depth {
+                let folder = Entry::Folder {
+                    name: path.file_name().unwrap().to_owned(),
+                    entries: read_path(&path, max_depth, depth + 1),
+                };
+                return Some(folder);
+            }
 
-    return hash;
+            return None;
+        })
+        .collect();
+
+    return output;
 }
 
-/*
-paths
-    .into_iter()
-    .map(|path| fs::read_dir(path))
-    .filter_map(|r| r.and_then(|rd| Ok(rd)).ok())
-    .flat_map(|rd| rd.map(|entry| entry))
-    .collect();
- */
+#[derive(Debug)]
+pub enum Entry {
+    Folder { name: OsString, entries: Vec<Entry> },
+    File(PathBuf),
+}
