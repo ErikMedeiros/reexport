@@ -21,11 +21,18 @@ pub struct CLI {
     pub depth: usize,
 }
 
-pub fn read_path(root: &Path, max_depth: usize, depth: usize) -> Vec<Entry> {
+pub fn read_path(
+    root: &Path,
+    extensions: &Vec<OsString>,
+    ignore: &Vec<OsString>,
+    max_depth: usize,
+    depth: usize,
+) -> Vec<Entry> {
     let rd = fs::read_dir(root).unwrap();
 
     let output = rd
         .filter_map(|r| r.ok())
+        .filter(|dir_entry| filter_dir_entry(dir_entry, extensions, ignore))
         .map(|entry| {
             let path = entry.path();
 
@@ -35,7 +42,7 @@ pub fn read_path(root: &Path, max_depth: usize, depth: usize) -> Vec<Entry> {
 
             let name = path.file_name().unwrap().to_owned();
             let entries = if depth + 1 <= max_depth {
-                read_path(&path, max_depth, depth + 1)
+                read_path(&path, extensions, ignore, max_depth, depth + 1)
             } else {
                 Vec::new()
             };
@@ -45,6 +52,31 @@ pub fn read_path(root: &Path, max_depth: usize, depth: usize) -> Vec<Entry> {
         .collect::<Vec<Entry>>();
 
     return output;
+}
+
+fn filter_dir_entry(
+    entry: &fs::DirEntry,
+    extensions: &Vec<OsString>,
+    ignore: &Vec<OsString>,
+) -> bool {
+    let path = entry.path();
+    let name = path.file_name().unwrap_or_default();
+
+    let should_exclude = ignore.iter().any(|t| {
+        name.to_str()
+            .unwrap_or_default()
+            .contains(t.to_str().unwrap_or_default())
+    });
+
+    if path.is_file() {
+        let should_include = extensions.iter().any(|ext| {
+            name.to_str()
+                .unwrap_or_default()
+                .ends_with(ext.to_str().unwrap_or_default())
+        });
+        return !should_exclude && should_include;
+    }
+    return !should_exclude;
 }
 
 #[derive(Debug)]

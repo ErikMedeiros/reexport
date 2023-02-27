@@ -4,7 +4,7 @@ use reexport::{read_path, Entry, CLI};
 fn main() {
     let cli = CLI::parse();
     for path in &cli.paths {
-        let output = read_path(&path, cli.depth, 0);
+        let output = read_path(&path, &cli.extensions, &cli.ignore, cli.depth, 0);
         //println!("{:?}", output);
 
         for entry in output {
