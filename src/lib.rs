@@ -21,6 +21,32 @@ pub struct CLI {
     pub depth: usize,
 }
 
+pub fn write_files(root: &Path, entries: &Vec<Entry>) {
+    let mut buffer = Vec::new();
+
+    for entry in entries {
+        match entry {
+            Entry::File(path) => {
+                let os_str = path.file_stem().unwrap_or_default();
+                let name = os_str.to_str().unwrap_or_default();
+                buffer.push(format!("export * from './{}';", name));
+            }
+            Entry::Folder { path, entries } => {
+                let os_str = path.file_stem().unwrap_or_default();
+                let name = os_str.to_str().unwrap_or_default();
+                buffer.push(format!("export * from './{}';", name));
+                write_files(&path, entries);
+            }
+        }
+    }
+
+    if buffer.len() > 0 {
+        let mut output_path = root.to_owned();
+        output_path.push("index.ts");
+        fs::write(output_path, buffer.join("\n") + "\n").unwrap();
+    }
+}
+
 pub fn read_path(
     root: &Path,
     extensions: &Vec<OsString>,
@@ -40,14 +66,13 @@ pub fn read_path(
                 return Entry::File(path);
             }
 
-            let name = path.file_name().unwrap().to_owned();
             let entries = if depth + 1 <= max_depth {
                 read_path(&path, extensions, ignore, max_depth, depth + 1)
             } else {
                 Vec::new()
             };
 
-            return Entry::Folder { name, entries };
+            return Entry::Folder { path, entries };
         })
         .collect::<Vec<Entry>>();
 
@@ -79,8 +104,7 @@ fn filter_dir_entry(
     return !should_exclude;
 }
 
-#[derive(Debug)]
 pub enum Entry {
-    Folder { name: OsString, entries: Vec<Entry> },
+    Folder { path: PathBuf, entries: Vec<Entry> },
     File(PathBuf),
 }

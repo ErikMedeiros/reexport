@@ -1,13 +1,13 @@
 use clap::Parser;
-use reexport::{read_path, Entry, CLI};
+use reexport::{read_path, write_files, Entry, CLI};
 
 fn main() {
     let cli = CLI::parse();
     for path in &cli.paths {
-        let output = read_path(&path, &cli.extensions, &cli.ignore, cli.depth, 0);
-        //println!("{:?}", output);
+        let entries = read_path(&path, &cli.extensions, &cli.ignore, cli.depth, 0);
+        write_files(path, &entries);
 
-        for entry in output {
+        for entry in entries {
             print_entry(&entry, 0);
         }
     }
@@ -19,9 +19,9 @@ fn print_entry(entry: &Entry, depth: u32) {
     }
 
     match entry {
-        Entry::File(file) => println!("file -> {:?}", file.file_name().unwrap()),
-        Entry::Folder { entries, name } => {
-            println!("folder -> {:?}", name);
+        Entry::File(file) => println!("file -> {:?}", file.file_name().unwrap_or_default()),
+        Entry::Folder { entries, path } => {
+            println!("folder -> {:?}", path.file_name().unwrap_or_default());
             for entry in entries {
                 print_entry(&entry, depth + 1);
             }
