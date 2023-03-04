@@ -3,6 +3,7 @@ use std::{ffi::OsString, fs};
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
+#[command(group(clap::ArgGroup::new("traversal").args(["recursive", "depth"])))]
 pub struct CLI {
     /// List of paths to be reexported
     #[arg(required = true)]
@@ -19,6 +20,15 @@ pub struct CLI {
     /// Reexport subfolders within N depth
     #[arg(short, long, default_value_t = 0)]
     pub depth: usize,
+
+    /// Reexport all subfolders recursively
+    #[arg(short, long)]
+    pub recursive: bool,
+}
+
+pub enum Entry {
+    Folder { path: PathBuf, entries: Vec<Entry> },
+    File(PathBuf),
 }
 
 pub fn write_files(root: &Path, entries: &Vec<Entry>) {
@@ -51,6 +61,7 @@ pub fn read_path(
     root: &Path,
     extensions: &Vec<OsString>,
     ignore: &Vec<OsString>,
+    recursive: bool,
     max_depth: usize,
     depth: usize,
 ) -> Vec<Entry> {
@@ -66,8 +77,8 @@ pub fn read_path(
                 return Entry::File(path);
             }
 
-            let entries = if depth + 1 <= max_depth {
-                read_path(&path, extensions, ignore, max_depth, depth + 1)
+            let entries = if recursive || depth + 1 <= max_depth {
+                read_path(&path, extensions, ignore, recursive, max_depth, depth + 1)
             } else {
                 Vec::new()
             };
@@ -102,9 +113,4 @@ fn filter_dir_entry(
         return !should_exclude && should_include;
     }
     return !should_exclude;
-}
-
-pub enum Entry {
-    Folder { path: PathBuf, entries: Vec<Entry> },
-    File(PathBuf),
 }
