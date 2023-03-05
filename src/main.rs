@@ -4,7 +4,7 @@ use reexport::{read_path, write_files, Entry, CLI};
 fn main() {
     let cli = CLI::parse();
     for path in &cli.paths {
-        let entries = read_path(&path, &cli.ignore, cli.recursive, cli.only_ts, cli.depth, 0);
+        let entries = read_path(&path, &cli.ignore, cli.only_ts, cli.recursive, cli.depth, 0);
         write_files(path, &entries);
 
         for entry in entries {

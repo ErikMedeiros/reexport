@@ -98,20 +98,21 @@ fn filter_dir_entry(entry: &fs::DirEntry, only_ts: bool, ignore: &Vec<OsString>)
         .to_str()
         .unwrap_or_default();
 
-    let should_exclude = !name.contains("index")
-        && ignore
+    let should_exclude = name.contains("index")
+        || ignore
             .iter()
             .any(|t| name.contains(t.to_str().unwrap_or_default()));
 
     if path.is_file() {
-        let should_include = if let Some(ext) = path.extension() {
-            let allowed_exts = if only_ts {
+        let should_include = if let Some(extension) = path.extension() {
+            let allowed_extensions = if only_ts {
                 vec!["ts", "tsx"]
             } else {
                 vec!["ts", "tsx", "js", "jsx"]
             };
 
-            return allowed_exts.contains(&ext.to_str().unwrap_or_default());
+            let extension = extension.to_str().unwrap_or_default();
+            allowed_extensions.iter().any(|ext| extension == *ext)
         } else {
             false
         };
