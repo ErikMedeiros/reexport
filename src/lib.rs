@@ -9,13 +9,13 @@ pub struct CLI {
     #[arg(required = true)]
     pub paths: Vec<PathBuf>,
 
-    /// Exclude files with matching names
-    #[arg(short, long, default_values = ["index"])]
+    /// Ignore files with matching names
+    #[arg(short, long)]
     pub ignore: Vec<OsString>,
 
-    /// File extensions to consider
-    #[arg(long = "ext", default_values = [".ts", ".tsx", ".js", ".jsx"])]
-    pub extensions: Vec<OsString>,
+    /// Ignore .js or .jsx files
+    #[arg(long)]
+    pub only_ts: bool,
 
     /// Reexport subfolders within N depth
     #[arg(short, long, default_value_t = 0)]
@@ -59,8 +59,8 @@ pub fn write_files(root: &Path, entries: &Vec<Entry>) {
 
 pub fn read_path(
     root: &Path,
-    extensions: &Vec<OsString>,
     ignore: &Vec<OsString>,
+    only_ts: bool,
     recursive: bool,
     max_depth: usize,
     depth: usize,
@@ -69,7 +69,7 @@ pub fn read_path(
 
     let output = rd
         .filter_map(|r| r.ok())
-        .filter(|dir_entry| filter_dir_entry(dir_entry, extensions, ignore))
+        .filter(|dir_entry| filter_dir_entry(dir_entry, only_ts, ignore))
         .map(|entry| {
             let path = entry.path();
 
@@ -78,7 +78,7 @@ pub fn read_path(
             }
 
             let entries = if recursive || depth + 1 <= max_depth {
-                read_path(&path, extensions, ignore, recursive, max_depth, depth + 1)
+                read_path(&path, ignore, only_ts, recursive, max_depth, depth + 1)
             } else {
                 Vec::new()
             };
@@ -90,26 +90,31 @@ pub fn read_path(
     return output;
 }
 
-fn filter_dir_entry(
-    entry: &fs::DirEntry,
-    extensions: &Vec<OsString>,
-    ignore: &Vec<OsString>,
-) -> bool {
+fn filter_dir_entry(entry: &fs::DirEntry, only_ts: bool, ignore: &Vec<OsString>) -> bool {
     let path = entry.path();
-    let name = path.file_name().unwrap_or_default();
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap_or_default();
 
-    let should_exclude = ignore.iter().any(|t| {
-        name.to_str()
-            .unwrap_or_default()
-            .contains(t.to_str().unwrap_or_default())
-    });
+    let should_exclude = !name.contains("index")
+        && ignore
+            .iter()
+            .any(|t| name.contains(t.to_str().unwrap_or_default()));
 
     if path.is_file() {
-        let should_include = extensions.iter().any(|ext| {
-            name.to_str()
-                .unwrap_or_default()
-                .ends_with(ext.to_str().unwrap_or_default())
-        });
+        let should_include = if let Some(ext) = path.extension() {
+            let allowed_exts = if only_ts {
+                vec!["ts", "tsx"]
+            } else {
+                vec!["ts", "tsx", "js", "jsx"]
+            };
+
+            return allowed_exts.contains(&ext.to_str().unwrap_or_default());
+        } else {
+            false
+        };
         return !should_exclude && should_include;
     }
     return !should_exclude;
